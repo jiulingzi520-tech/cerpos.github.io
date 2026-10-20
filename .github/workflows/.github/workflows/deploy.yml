@@ -1,0 +1,62 @@
+name: Deploy CERP Website
+
+on:
+push:
+branches:
+- main
+workflow_dispatch:
+
+permissions:
+contents: read
+pages: write
+id-token: write
+
+concurrency:
+group: pages
+cancel-in-progress: true
+
+jobs:
+deploy:
+environment:
+name: github-pages
+url: ${{ steps.deployment.outputs.page_url }}
+runs-on: ubuntu-latest
+
+steps:
+  - name: Download repository
+    uses: actions/checkout@v4
+  - name: Prepare website
+    run: |
+      set -e
+      mkdir -p public extracted
+      if [ -f "CERP_GitHub_Pages_Lite.zip" ]; then
+        ZIP="CERP_GitHub_Pages_Lite.zip"
+      elif [ -f "CERP_GitHub_Pages.zip" ]; then
+        ZIP="CERP_GitHub_Pages.zip"
+      else
+        ZIP=$(find . -maxdepth 1 -name '*.zip' -print -quit)
+      fi
+      if [ -z "$ZIP" ]; then
+        echo "No website ZIP found in repository root."
+        exit 1
+      fi
+      unzip -q "$ZIP" -d extracted
+      if [ -f "extracted/cerp_github_pages_ready/index.html" ]; then
+        cp -R extracted/cerp_github_pages_ready/. public/
+      elif [ -f "extracted/index.html" ]; then
+        cp -R extracted/. public/
+      else
+        echo "Cannot find index.html in the ZIP."
+        exit 1
+      fi
+      test -f public/index.html
+      touch public/.nojekyll
+  - name: Configure Pages
+    uses: actions/configure-pages@v5
+  - name: Upload website
+    uses: actions/upload-pages-artifact@v3
+    with:
+      path: public
+  - name: Publish website
+    id: deployment
+    uses: actions/deploy-pages@v4
